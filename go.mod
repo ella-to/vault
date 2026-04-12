@@ -1,3 +1,3 @@
 module ella.to/vault
 
-go 1.25.2
+go 1.19
