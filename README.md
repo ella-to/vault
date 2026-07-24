@@ -27,7 +27,7 @@ A simple, cross-platform secret storage library for Go. Stores secrets securely 
 ## Installation
 
 ```bash
-go get ella.to/vault@v0.0.3
+go get ella.to/vault@v0.0.4
 ```
 
 ## Usage
