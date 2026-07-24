@@ -11,7 +11,6 @@
 <div align="center">
 
 [![Go Reference](https://pkg.go.dev/badge/ella.to/vault.svg)](https://pkg.go.dev/ella.to/vault)
-[![Go Report Card](https://goreportcard.com/badge/ella.to/vault)](https://goreportcard.com/report/ella.to/vault)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 A simple, cross-platform secret storage library for Go. Stores secrets securely using platform-native secure storage mechanisms without CGO.
@@ -76,10 +75,10 @@ func main() {
 | Platform | Storage Mechanism | Notes |
 |----------|-------------------|-------|
 | **macOS** | Keychain via `security` CLI | Uses the default keychain |
-| **Windows** | Credential Manager via `cmdkey`/PowerShell | Generic credentials |
+| **Windows** | Credential Manager via PowerShell (advapi32 `CredRead`/`CredWrite`/`CredDelete`) | Generic credentials |
 | **Linux** | Secret Service via `secret-tool` | Falls back to encrypted files if unavailable |
 | **iOS** | File-based in app sandbox | Uses iOS Data Protection |
-| **Android** | File-based in app sandbox | Uses Android app sandbox security |
+| **Android** | File-based in app sandbox | Requires `HOME` to be set (see notes) |
 | **WASM/Browser** | IndexedDB | Base64 encoded, same-origin accessible |
 
 ### Platform Notes
@@ -88,7 +87,9 @@ func main() {
 Uses the `security` command-line tool to interact with the Keychain. No additional setup required.
 
 #### Windows
-Uses `cmdkey` and PowerShell for Windows Credential Manager access. Works on Windows 10/11.
+Uses PowerShell to call the Credential Manager APIs (`CredRead`/`CredWrite`/`CredDelete` in advapi32) directly, so behavior does not depend on localized command output. Works on Windows 10/11.
+
+Note: Generic credential blobs are capped at 2560 bytes by Windows (`CRED_MAX_CREDENTIAL_BLOB_SIZE`). Values are base64 encoded and stored as UTF-16, so secrets up to roughly 960 raw bytes fit.
 
 #### Linux
 Prefers `secret-tool` (from `libsecret-tools` package) which integrates with GNOME Keyring, KWallet, etc. If not available, falls back to file-based storage in `~/.local/share/vault-secrets/`.
@@ -115,6 +116,14 @@ sudo pacman -S libsecret
 #### iOS & Android
 Use file-based storage within the app's sandboxed storage, which provides OS-level security isolation.
 
+On iOS, `HOME` points at the app container automatically, so secrets land in `Library/Application Support/vault-secrets`.
+
+On Android, app processes do not get a usable `HOME` by default. The embedding app must set it to its private files directory before using this package, e.g. from Java/Kotlin before initializing the Go runtime:
+
+```java
+android.system.Os.setenv("HOME", context.getFilesDir().getAbsolutePath(), true);
+```
+
 ## Testing
 
 ### Run tests on current platform
@@ -137,32 +146,14 @@ make test-linux
 docker run --rm -v $(pwd):/app -w /app golang:latest go test -v ./...
 ```
 
-### Testing on Windows
-Options for testing on Windows:
-1. **Windows VM**: Use VirtualBox, Parallels, or VMware with a Windows image
-2. **GitHub Actions**: Add Windows to your CI matrix
-3. **Azure DevOps**: Use Windows build agents
-
-Example GitHub Actions workflow:
-```yaml
-name: Test
-
-on: [push, pull_request]
-
-jobs:
-  test:
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version: '1.21'
-      - name: Test
-        run: go test -v ./...
+### Testing WebAssembly (Node.js)
+Runs the full test suite as `js/wasm` under Node.js with the [`fake-indexeddb`](https://github.com/dumbmatter/fakeIndexedDB) polyfill (requires `node` and `npm`):
+```bash
+make test-wasm
 ```
+
+### Testing on Windows
+Tests run on `windows-latest` in the GitHub Actions workflow at `.github/workflows/test.yml`, which covers Linux, macOS, Windows, the Linux keyring path (gnome-keyring), js/wasm, and cross-compilation of every target. Locally, a Windows VM (VirtualBox, Parallels, VMware) also works.
 
 ### Testing on mobile platforms
 - **iOS**: Use Xcode simulator or device via gomobile

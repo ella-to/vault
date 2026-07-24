@@ -69,20 +69,22 @@ func del(service, key string) error {
 }
 
 func getStorageDir() (string, error) {
-	// On Android, the app's files directory is typically provided via
-	// environment or the current working directory within the app sandbox
-	// Try to use a sensible default that works in the Android app context
-	dir := os.Getenv("ANDROID_DATA")
-	if dir == "" {
-		// Fallback to current directory's parent for files
-		cwd, err := os.Getwd()
-		if err != nil {
-			return "", err
-		}
-		dir = filepath.Join(cwd, ".vault-secrets")
-	} else {
-		dir = filepath.Join(dir, "vault-secrets")
+	// Store under the app's private files directory. Android does not set
+	// HOME for app processes by default; the embedding app must set it to
+	// its sandbox (e.g. Context.getFilesDir().getAbsolutePath()) before
+	// using this package. ANDROID_DATA is deliberately not used: it points
+	// at /data, which apps have no permission to write to.
+	if home, err := os.UserHomeDir(); err == nil && home != "" && home != "/" {
+		dir := filepath.Join(home, ".vault-secrets")
+		return dir, os.MkdirAll(dir, 0o700)
 	}
+
+	// Fallback for environments that run with a writable working directory.
+	cwd, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+	dir := filepath.Join(cwd, ".vault-secrets")
 	return dir, os.MkdirAll(dir, 0o700)
 }
 

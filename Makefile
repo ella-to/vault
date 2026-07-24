@@ -1,8 +1,13 @@
-.PHONY: test test-all build-all clean
+.PHONY: test test-all test-wasm build-all clean
 
 # Run tests on current platform
 test:
 	go test -v ./...
+
+# Run tests for js/wasm under Node.js with an IndexedDB polyfill
+test-wasm:
+	npm install --no-save fake-indexeddb
+	GOOS=js GOARCH=wasm go test -exec "$(PWD)/scripts/wasm_exec_idb.sh" -v ./...
 
 # Build for all supported platforms to verify compilation
 build-all:
@@ -12,6 +17,8 @@ build-all:
 	GOOS=darwin GOARCH=arm64 go build ./...
 	@echo "Building for Windows (windows/amd64)..."
 	GOOS=windows GOARCH=amd64 go build ./...
+	@echo "Building for Windows (windows/arm64)..."
+	GOOS=windows GOARCH=arm64 go build ./...
 	@echo "Building for Linux (linux/amd64)..."
 	GOOS=linux GOARCH=amd64 go build ./...
 	@echo "Building for Linux (linux/arm64)..."
