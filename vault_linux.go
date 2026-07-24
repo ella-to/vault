@@ -87,6 +87,13 @@ func getSecretTool(service, key string) ([]byte, error) {
 }
 
 func deleteSecretTool(service, key string) error {
+	// secret-tool clear gives no reliable indication of whether anything
+	// matched (and its messages are localized), so check existence first
+	// to be able to report ErrNotFound.
+	if _, err := getSecretTool(service, key); err != nil {
+		return err
+	}
+
 	cmd := exec.Command("secret-tool", "clear",
 		"service", service,
 		"key", key,
