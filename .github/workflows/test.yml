@@ -1,0 +1,63 @@
+name: Test
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "stable"
+      - name: Test
+        run: go test -v ./...
+
+  # Exercises the secret-tool (Secret Service) code path, which the plain
+  # ubuntu job skips because no keyring daemon is running there.
+  test-linux-keyring:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "stable"
+      - name: Install libsecret and gnome-keyring
+        run: sudo apt-get update && sudo apt-get install -y libsecret-tools gnome-keyring dbus-x11
+      - name: Test against gnome-keyring
+        run: |
+          dbus-run-session -- bash -c '
+            echo -n "" | gnome-keyring-daemon --unlock --components=secrets
+            go test -v ./...
+          '
+
+  test-wasm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "stable"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install IndexedDB polyfill
+        run: npm install --no-save fake-indexeddb
+      - name: Test js/wasm
+        run: GOOS=js GOARCH=wasm go test -exec "$PWD/scripts/wasm_exec_idb.sh" -v ./...
+        env:
+          CGO_ENABLED: "0"
+
+  cross-compile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "stable"
+      - name: Build all platforms
+        run: make build-all
